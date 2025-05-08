@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Memastikan script dijalankan di dalam folder paket
+if [ ! -f "DEBIAN/control" ]; then
+    echo "This folder does not contain a valid Debian package. Make sure the DEBIAN/control file exists."
+    exit 1
+fi
+
+# Mendapatkan nama folder saat ini (misalnya nama-paket-1.0)
+folder_name=$(basename $(pwd))
+
+# Mengambil versi dari file DEBIAN/control
+version=$(grep -i '^Version' DEBIAN/control | awk '{print $2}')
+
+# Memastikan versi ditemukan
+if [ -z "$version" ]; then
+    echo "Version not found in DEBIAN/control file."
+    exit 1
+fi
+
+# Membangun file .deb dengan nama folder dan versi
+clear
+dpkg-deb --build . "${folder_name}-${version}.deb"
+
+#clear
+echo -e "\e[1mPlease wait...\e[0m"
+sleep 3
+clear
+
+# Menampilkan hasil
+echo "Package was successfully built with the name: ${folder_name}-${version}.deb"

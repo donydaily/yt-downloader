@@ -1,0 +1,8 @@
+Package: yt-dlr
+Version: 1.0-beta
+Section: video
+Priority: optional
+Architecture: all
+Depends: python3 (>= 3.6), python3-pyqt5, ffmpeg, yt-dlp
+Maintainer: donydaily
+Description: A simple GUI YouTube downloader using yt-dlp and PyQt5.

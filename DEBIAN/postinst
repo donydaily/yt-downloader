@@ -10,6 +10,8 @@ if ! command -v yt-dlp &> /dev/null; then
   sudo apt-get update
   sudo apt-get install -y yt-dlp
   sudo apt-get install -y ffmpeg
+  sudo apt-get install -y python3-pyqt5.qtmultimedia
+  sudo apt-get install -y libqt5multimedia5-plugins
 fi
 
 exit 0

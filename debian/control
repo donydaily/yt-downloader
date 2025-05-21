@@ -1,0 +1,13 @@
+Source: yt-dlp-gui
+Section: video
+Priority: optional
+Maintainer: donydaily <fajarromadoni1@gmail.com>
+Build-Depends: debhelper (>= 11), python3, dh-python, python3-pyqt5
+Standards-Version: 4.1.5
+Homepage: https://launchpad.net/~donydaily
+
+Package: yt-dlp-gui
+Architecture: all
+Depends: ${misc:Depends}, ${python3:Depends}, python3-pyqt5, ffmpeg, yt-dlp
+Description: A simple GUI YouTube downloader using yt-dlp and PyQt5.
+ A desktop app to download videos from YouTube and other platforms using yt-dlp backend and PyQt5 frontend.

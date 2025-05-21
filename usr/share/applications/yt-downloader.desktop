@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=YT Downloader
-Exec=yt-dlr
-Icon=/usr/share/icons/hicolor/512x512/apps/yt-dlr.png
+Exec=yt-dlp-gui
+Icon=/usr/share/icons/hicolor/512x512/apps/yt-dlp-gui-icon.png
 Type=Application
 Comment=A Simple Gui Youtube Downloader Using Yt-Dlp And Pyqt5
 Categories=AudioVideo;Utility;Internet;

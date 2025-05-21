@@ -1,4 +1,4 @@
-Package: yt-dlr
+Package: yt-dlp-gui
 Version: 1.0-beta
 Section: video
 Priority: optional

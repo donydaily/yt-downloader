@@ -3,6 +3,7 @@
 import sys
 import os
 import uuid
+import requests
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLineEdit, QPushButton,
     QLabel, QComboBox, QMessageBox, QProgressBar, QTextEdit
@@ -11,16 +12,20 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtMultimedia import QSound
 from PyQt5 import QtGui
 from yt_dlp import YoutubeDL
+from mutagen.mp3 import MP3
+from mutagen.id3 import ID3, APIC, error
+from PIL import Image
+from io import BytesIO
 
-# Folder tujuan otomatis
-DOWNLOAD_DIR = os.path.expanduser('~/Downloads/yt-dlr/')
+DOWNLOAD_DIR = os.path.expanduser('~/Downloads/YT-Downloader/')
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
 HISTORY_FILE = os.path.join(DOWNLOAD_DIR, 'history.txt')
+
 
 class DownloadThread(QThread):
     progress = pyqtSignal(str)
     finished = pyqtSignal(str)
+    percent = pyqtSignal(int)
 
     def __init__(self, url, format_choice, quality):
         super().__init__()
@@ -38,7 +43,9 @@ class DownloadThread(QThread):
                 'noplaylist': True
             }
 
-            if "Audio" in self.format_choice:
+            is_audio = "Audio" in self.format_choice
+
+            if is_audio:
                 ydl_opts.update({
                     'format': 'bestaudio/best',
                     'postprocessors': [{
@@ -57,8 +64,52 @@ class DownloadThread(QThread):
             with YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(self.url, download=True)
                 title = info.get('title', 'Unknown')
+
+                if is_audio:
+                    output_path = os.path.join(DOWNLOAD_DIR, f"{title}.mp3")
+                    if os.path.exists(output_path):
+                        thumbnail_url = info.get('thumbnail')
+                        if thumbnail_url:
+                            try:
+                                # Unduh gambar
+                                img_data = requests.get(thumbnail_url).content
+                                img = Image.open(BytesIO(img_data))
+
+                                # Crop gambar (misalnya menjadi persegi)
+                                size = min(img.width, img.height)  # Tentukan ukuran crop
+                                left = (img.width - size) / 2
+                                top = (img.height - size) / 2
+                                right = (img.width + size) / 2
+                                bottom = (img.height + size) / 2
+
+                                # Crop dan simpan gambar
+                                img = img.crop((left, top, right, bottom))
+                                img_byte_arr = BytesIO()
+                                img.save(img_byte_arr, format='JPEG')
+                                img_byte_arr = img_byte_arr.getvalue()
+
+                                # Sisipkan gambar ke file MP3
+                                audio = MP3(output_path, ID3=ID3)
+                                try:
+                                    audio.add_tags()
+                                except error:
+                                    pass
+
+                                audio.tags.add(APIC(
+                                    encoding=3,  # UTF-8
+                                    mime='image/jpeg',
+                                    type=3,  # Cover front
+                                    desc='Cover',
+                                    data=img_byte_arr
+                                ))
+                                audio.save()
+                                self.progress.emit("Thumbnail berhasil disisipkan ke MP3.")
+                            except Exception as e:
+                                self.progress.emit(f"Gagal menyisipkan thumbnail: {e}")
+
                 with open(HISTORY_FILE, 'a') as f:
                     f.write(f"{title} - {self.url}\n")
+
                 self.progress.emit(f"Selesai: {title}")
         except Exception as e:
             self.progress.emit(f"Gagal: {self.url} ({str(e)})")
@@ -66,12 +117,17 @@ class DownloadThread(QThread):
 
     def hook(self, d):
         if d['status'] == 'downloading':
-            percent = d.get('_percent_str', '').strip()
+            percent_str = d.get('_percent_str', '').strip().replace('%', '')
+            try:
+                self.percent.emit(int(float(percent_str)))
+            except:
+                pass
             speed = d.get('_speed_str', '').strip()
             eta = d.get('eta', 0)
-            self.progress.emit(f"[download] {percent} at {speed} ETA {eta}s")
+            self.progress.emit(f"[download] {percent_str}% at {speed} ETA {eta}s")
         elif d['status'] == 'finished':
             self.progress.emit("[download] Menggabungkan...")
+
 
 class YouTubeDownloader(QWidget):
     def __init__(self):
@@ -94,12 +150,16 @@ class YouTubeDownloader(QWidget):
         self.quality_combo.setCurrentText('720')
         layout.addWidget(self.quality_combo)
 
+        self.format_combo.currentIndexChanged.connect(self.toggle_quality_combo)
+
         self.download_btn = QPushButton('Download', self)
         self.download_btn.clicked.connect(self.download_video)
         layout.addWidget(self.download_btn)
 
         self.progress_bar = QProgressBar(self)
-        self.progress_bar.setMaximum(0)
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setValue(0)
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
 
@@ -112,6 +172,12 @@ class YouTubeDownloader(QWidget):
 
         self.setLayout(layout)
 
+    def toggle_quality_combo(self):
+        if "Audio" in self.format_combo.currentText():
+            self.quality_combo.setEnabled(False)
+        else:
+            self.quality_combo.setEnabled(True)
+
     def download_video(self):
         url = self.url_input.text().strip()
         if not url:
@@ -121,6 +187,7 @@ class YouTubeDownloader(QWidget):
         format_choice = self.format_combo.currentText()
         quality = self.quality_combo.currentText()
 
+        self.progress_bar.setValue(0)
         self.progress_bar.setVisible(True)
         self.status_label.setText("Memulai unduhan...")
         self.download_btn.setEnabled(False)
@@ -129,6 +196,7 @@ class YouTubeDownloader(QWidget):
         self.thread = DownloadThread(url, format_choice, quality)
         self.thread.progress.connect(self.update_status)
         self.thread.finished.connect(self.download_finished)
+        self.thread.percent.connect(self.progress_bar.setValue)
         self.thread.start()
 
     def update_status(self, message):
@@ -139,13 +207,13 @@ class YouTubeDownloader(QWidget):
         self.progress_bar.setVisible(False)
         self.download_btn.setEnabled(True)
         self.status_label.setText(message)
-        QSound.play("/usr/share/sounds/yt-dlr-notif.wav")
-        #QMessageBox.information(self, "Selesai", message)
+        notif_path = "/usr/share/sounds/yt-dlp-gui-notif.wav"
+        if os.path.exists(notif_path):
+            QSound.play(notif_path)
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-
-    # Load QSS theme
     with open("/usr/share/themes/YT-Downloader/dark_theme.qss", "r") as f:
         app.setStyleSheet(f.read())
 
